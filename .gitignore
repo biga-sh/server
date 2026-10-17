@@ -1,0 +1,26 @@
+# Binaries
+/biga-server
+/dist/
+*.exe
+*.test
+
+# Test and coverage output
+*.out
+coverage.*
+*.coverprofile
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Go workspace
+go.work
+go.work.sum
+
+# AI skills (installed per machine)
+skills-lock.json
+.agents/
+.claude

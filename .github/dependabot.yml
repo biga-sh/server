@@ -1,0 +1,30 @@
+version: 2
+
+updates:
+  # Keeps the pinned action SHAs and their version comments current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      golang-x:
+        patterns: ["golang.org/x/*"]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps

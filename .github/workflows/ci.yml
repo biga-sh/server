@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Reused by release.yml, so a release passes exactly the same gate.
+  workflow_call:
+
+# Every job starts from read-only access and asks for more only if it needs it.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOLANGCI_LINT_VERSION: v2.14.0
+  GOVULNCHECK_VERSION: v1.9.0
+  ACTIONLINT_VERSION: v1.7.12
+  ZIZMOR_VERSION: 1.31.0
+
+jobs:
+  test:
+    name: Test (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [stable, oldstable]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (including the API against Postgres)
+        run: go test -race -count=1 -timeout=10m ./...
+        env:
+          BIGA_TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/postgres?sslmode=disable
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+
+      - name: go.mod and go.sum are tidy
+        run: go mod tidy -diff
+
+      - name: Known vulnerabilities
+        run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
+
+      - name: Workflows
+        run: go run "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+
+      - name: Workflow security
+        run: pipx run "zizmor==${ZIZMOR_VERSION}" .github/workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  image:
+    name: Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: biga-server:ci
+          build-args: VERSION=ci
+
+      # The image starts, migrates an empty database and reports healthy.
+      - name: Smoke test
+        run: |
+          docker network create smoke
+          docker run -d --name db --network smoke -e POSTGRES_PASSWORD=test postgres:17-alpine
+          docker run -d --name server --network smoke \
+            -e DATABASE_URL='postgres://postgres:test@db:5432/postgres?sslmode=disable' \
+            biga-server:ci
+          for _ in $(seq 1 60); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' server)
+            [ "$status" = healthy ] && break
+            sleep 2
+          done
+          docker logs server
+          [ "$(docker inspect -f '{{.State.Health.Status}}' server)" = healthy ]

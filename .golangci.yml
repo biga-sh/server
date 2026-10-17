@@ -1,0 +1,60 @@
+version: "2"
+
+linters:
+  enable:
+    # correctness
+    - errorlint
+    - nilerr
+    - forcetypeassert
+    - copyloopvar
+    - durationcheck
+    - reassign
+    # security and resources
+    - gosec
+    - bidichk
+    - asciicheck
+    - bodyclose
+    - noctx
+    - sqlclosecheck
+    - rowserrcheck
+    - containedctx
+    - fatcontext
+    # style and simplification
+    - gocritic
+    - revive
+    - misspell
+    - perfsprint
+    - unconvert
+    - usestdlibvars
+    - modernize
+    - nolintlint
+  settings:
+    errcheck:
+      check-type-assertions: true
+    gosec:
+      excludes:
+        - G115 # integer conversions are clamped where they happen; see wire.checkFile
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    perfsprint:
+      strconcat: false
+    revive:
+      rules:
+        - name: exported
+          disabled: true # internal packages; doc comments are kept by review
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [errcheck, gosec, forcetypeassert, noctx, bodyclose]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/biga-sh/server
