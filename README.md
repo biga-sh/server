@@ -36,7 +36,7 @@ go run ./cmd/biga-server                  # migrates, then serves on :8080
 Or the image:
 
 ```sh
-docker run -p 8080:8080 -e DATABASE_URL=... ghcr.io/biga-sh/server:0
+docker run -p 8080:8080 -e DATABASE_URL=... ghcr.io/biga-sh/server:1
 ```
 
 The server applies its migrations on start.
