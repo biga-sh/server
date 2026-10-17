@@ -12,13 +12,14 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 ARG TARGETOS TARGETARCH
-ARG VERSION=dev
+# Overrides the version in internal/version when set, e.g. by the release.
+ARG VERSION=
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    ldflags="-s -w"; \
+    if [ -n "$VERSION" ]; then ldflags="$ldflags -X github.com/biga-sh/server/internal/version.version=$VERSION"; fi; \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath \
-      -ldflags "-s -w -X github.com/biga-sh/server/internal/version.version=${VERSION}" \
-      -o /out/biga-server ./cmd/biga-server
+    go build -trimpath -ldflags "$ldflags" -o /out/biga-server ./cmd/biga-server
 
 # Runtime stage: a static binary on distroless. No shell, no package
 # manager, CA certificates for TLS to managed Postgres, and a non-root user.

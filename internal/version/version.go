@@ -6,7 +6,7 @@ import "runtime/debug"
 // version is set at link time:
 //
 //	go build -ldflags "-X github.com/biga-sh/server/internal/version.version=1.2.3"
-var version = ""
+var version = "1.0.0"
 
 // String is the server version: the link-time value, else the module version
 // `go install` recorded, else "dev".

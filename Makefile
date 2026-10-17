@@ -40,4 +40,4 @@ vuln: ## Check dependencies for known vulnerabilities
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 image: ## Build the container image
-	docker build --build-arg VERSION=$(or $(VERSION),dev) -t biga-server:dev .
+	docker build --build-arg VERSION=$(VERSION) -t biga-server:dev .
